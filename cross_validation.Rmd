@@ -179,10 +179,12 @@ Fit models, get RMSEs
 ```{r}
 cv_df = 
   cv_df %>% 
-  mutate(lin_mod     = map(train, ~lm(armc ~ weight, data = .x)),
+  mutate(int_mod     = map(train, ~lm(armc ~ 1, data = .x)), 
+         lin_mod     = map(train, ~lm(armc ~ weight, data = .x)),
          pwl_mod     = map(train, ~lm(armc ~ weight + weight_sp, data = .x)),
          nonlin_mod  = map(train, ~gam(armc ~ s(weight), data = as_tibble(.x)))) %>% 
-  mutate(rmse_lin    = map2_dbl(lin_mod, test, ~rmse(model = .x, data = .y)),
+  mutate(rmse_int    = map2_dbl(int_mod, test, ~rmse(model = .x, data = .y)),
+         rmse_lin    = map2_dbl(lin_mod, test, ~rmse(model = .x, data = .y)),
          rmse_pwl    = map2_dbl(pwl_mod, test, ~rmse(model = .x, data = .y)),
          rmse_nonlin = map2_dbl(nonlin_mod, test, ~rmse(model = .x, data = .y)))
 ```
