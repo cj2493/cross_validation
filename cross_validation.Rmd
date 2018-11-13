@@ -86,10 +86,41 @@ rmse(nonlin_mod, test_df)
 rmse(wiggly_mod, test_df)
 ```
 
-## CV using modelr
+## CV using modelr (iterate!)
 
 ```{r}
 cv_df = 
-  crossv_mc(nonlin_df, 100) 
+  crossv_mc(nonlin_df, 100)
+```
+
+```{r}
+cv_df %>% pull(train) %>% .[[1]] %>% as_tibble
+cv_df %>% pull(test) %>% .[[1]] %>% as_tibble
+
+cv_df =
+  cv_df %>% 
+  mutate(train = map(train, as_tibble),
+         test = map(test, as_tibble))
+```
+
+
+```{r}
+cv_df =
+  cv_df %>%
+  mutate(lin_mod     = map(train, ~lm(y ~ x, data = .x)),
+         nonlin_mod  = map(train, ~gam(y ~ s(x), data = .x)),
+         wiggly_mod  = map(train, ~gam(y ~ s(x, k = 30), sp = 10e-6, data = .x))) %>%
+  mutate(rmse_lin    = map2_dbl(lin_mod, test, ~rmse(model = .x, data = .y)),
+         rmse_nonlin = map2_dbl(nonlin_mod, test, ~rmse(model = .x, data = .y)),
+         rmse_wiggly = map2_dbl(wiggly_mod, test, ~rmse(model = .x, data = .y)))
+```
+
+Summarize results...
+
+```{r}
+cv_df %>%
+  select(.id, starts_with("rmse")) %>%
+  gather(key = "model", value = rmse, rmse_lin:rmse_wiggly) %>%
+  ggplot(aes(x = model, y = rmse)) + geom_violin()
 ```
 
