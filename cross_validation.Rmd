@@ -1,0 +1,95 @@
+---
+title: "cross_validation"
+author: "Courtney Johnson"
+date: "November 13, 2018"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  fig.width = 6,
+  fig.asp = .6,
+  out.width = "90%"
+)
+library(tidyverse)
+library(modelr)
+library(mgcv)
+set.seed(1)
+```
+
+## Simulate data
+
+```{r, create_data}
+nonlin_df = tibble(
+  id = 1:100,
+  x = runif(100, 0, 1),
+  y = 1 - 10 * (x - .3) ^ 2 + rnorm(100, 0, .3)
+)
+
+ggplot(nonlin_df, aes(x = x, y = y)) + geom_point() + theme_bw()
+```
+
+Partition into training and testing.
+
+```{r, train_test}
+train_df = sample_n(nonlin_df, 80)
+test_df = anti_join(nonlin_df, train_df, by = "id")
+
+ggplot(train_df, aes(x = x, y = y)) + 
+  geom_point() + 
+  geom_point(data = test_df, color = "red")
+```
+
+Fit a few models
+
+```{r, fitting}
+lin_mod = lm(y ~ x, data = train_df)
+nonlin_mod = mgcv::gam(y ~ s(x), data = train_df)
+wiggly_mod = mgcv::gam(y ~ s(x, k = 30), sp = 10e-6, data = train_df)
+```
+
+Show what these look like.
+
+```{r, plot_fits}
+train_df %>% 
+  add_predictions(nonlin_mod) %>% 
+  ggplot(aes(x = x, y = y)) + geom_point() + 
+  geom_line(aes(y = pred), color = "red")
+
+train_df %>% 
+  add_predictions(lin_mod) %>% 
+  ggplot(aes(x = x, y = y)) + geom_point() + 
+  geom_line(aes(y = pred), color = "red")
+
+train_df %>% 
+  add_predictions(wiggly_mod) %>% 
+  ggplot(aes(x = x, y = y)) + geom_point() + 
+  geom_line(aes(y = pred), color = "red")
+
+train_df %>% 
+  gather_predictions(lin_mod, nonlin_mod, wiggly_mod) %>% 
+  mutate(model = fct_inorder(model)) %>% 
+  ggplot(aes(x = x, y = y)) + 
+  geom_point() + 
+  geom_line(aes(y = pred), color = "red") + 
+  facet_wrap(~model)
+```
+
+
+Compute RMSEs
+
+```{r, rmse}
+rmse(lin_mod, test_df)
+rmse(nonlin_mod, test_df)
+rmse(wiggly_mod, test_df)
+```
+
+## CV using modelr
+
+```{r}
+cv_df = 
+  crossv_mc(nonlin_df, 100) 
+```
+
